@@ -1,0 +1,158 @@
+---
+title: "Chapter_2_bacteria_inoc"
+author: "Allyson Hamilton"
+date: '2022-07-26'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# import required libraries
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+require(writexl)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2")
+
+extrusion_inoc <- read.table(file = "Phase 2 - Transfer During Extrusion inoc (1).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+extrusion_inoc <- extrusion_inoc[,-c(1:3,7:9,14,23)]
+
+extrusion_inoc$soil <- factor(extrusion_inoc$soil, levels = c("A", "B" , "P" , "S" ))
+extrusion_inoc$cap_print <- factor(extrusion_inoc$cap_print)
+extrusion_inoc$microbe <- factor(extrusion_inoc$microbe)
+```
+```{r}
+summary(extrusion_inoc)
+```
+```{r}
+#extrusion_no_both
+
+extrusion_cap_print_inoc  <- droplevels(extrusion_inoc[!extrusion_inoc$cap_print == "both",])
+```
+
+```{r}
+capsule_or_print_inoc <- ggplot(extrusion_cap_print_inoc, aes(x = soil, y = log_reduction_limit, color = cap_print, shape = microbe)) + 
+  geom_point(position = position_dodge2(0.1), size = 3) + 
+  ggtitle("") +
+  ylim(0,5) + 
+  xlab("Soil Component") +
+  ylab("Log Reduction") + 
+  labs(color = "Capsule or Printed Element:") +
+  labs(shape = "Microorganism")+
+  #scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Capsule_and_Print_Primary_data_inoc.jpg", width=7, height=5.5, unit="in", plot = capsule_or_print_inoc, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+```
+```{r}
+#raw_data
+
+capsule_or_print_inoc_no_limit <-ggplot(extrusion_cap_print_inoc, aes(x = soil, y = log_reduction, color = cap_print, shape = microbe)) + 
+  geom_point(position = position_dodge2(0.1), size = 3) + 
+  ggtitle("") +
+  ylim(0,5) + 
+  xlab("Soil Component") +
+  ylab("Log Reduction") + 
+  labs(color = "Capsule or Printed Element:") +
+  labs(shape = "Microorganism")+
+  #scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Capsule_and_Print_Primary_data_inoc_no_limit.jpg", width=7, height=5.5, unit="in", plot = capsule_or_print_inoc_no_limit, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+
+```
+
+
+```{r}
+
+anova.res3 <- lm(percent_trans_recov ~ microbe*soil*cap_print
+                 -microbe:soil:cap_print,
+                data = extrusion_cap_print_inoc)
+
+# display anova table in the console
+anova(anova.res3)
+summary(anova.res3)
+
+# residual analysis
+# extremely non-normal!
+plot(anova.res3, which = 1) 
+plot(anova.res3, which = 2)
+```
+```{r}
+#post-hoc analysis (not allowed because model isn't linear)
+require(emmeans)
+require(multcomp)
+
+lsmeans3 <- emmeans(anova.res3, specs = ~microbe:soil:cap_print, level = 0.05)
+lsmeans3 <- cld(lsmeans3, alpha = 0.05, Letters = letters, decreasing = T)
+lsmeans3 <- data.frame(lsmeans3)
+
+# remove excess spaces in .group
+lsmeans3$.group <- gsub(" ", "", lsmeans3$.group)
+lsmeans3
+
+ggplot(data = lsmeans3, aes(x=soil, y=emmean, fill=cap_print))+
+  geom_bar(stat="identity", position = position_dodge(), color="black", width=1)+
+  geom_errorbar(aes(ymin = lower.CL, ymax =upper.CL), position = position_dodge(width=1))+
+   facet_grid(~case_when(microbe == "ST" ~ "*S*. Typhimurium",
+                       microbe == "LM" ~ "*L. monocytogenes*")) +
+  geom_text(aes(label=.group, y = emmean+.1), position = position_dodge(width=1), size=2.75)+
+  xlab("Soil Type") + 
+  ylab("Estimated Percent Transferred or Remaining")+
+  ggtitle("")+
+  scale_fill_manual(values=c("#0072B2", "#56B4E9"), name = "Capsule or Print:", labels = (c("Capsule" , "Print")))+
+   theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="azure3",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=12, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 10),
+              axis.text.y = element_text(color= "black", size = 10),
+              strip.background = element_rect(fill=NA),
+              strip.text = ggtext::element_markdown(size = 12))
+
+
+```
+

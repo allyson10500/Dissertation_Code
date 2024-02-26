@@ -1,0 +1,117 @@
+---
+title: "Microgreen Project Map"
+author: "Allyson Hamilton"
+date: "2022-09-17"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+require(writexl)
+require(zipcodeR)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Microgreens")
+
+greens <- read.table(file = "Extracted List and Grower Characteristics for Coding.txt",
+                     header = TRUE,
+                     sep = "\t", colClasses="character")
+
+```
+
+```{r}
+#library(remotes)
+#install_github("cran/zipcode")
+#library(zipcode)
+library(maps)
+
+```
+```{r}
+
+map("usa")
+data("zipcode")
+
+selected <- zipcode[ zipcode$zip %in% greens$Zip.Code, ]
+map <- points(selected$longitude, selected$latitude, pch= 20, cex= 1) 
+
+```
+
+
+```{r}
+
+greens$Sell.Directly.to.Consumers. <- factor(greens$Sell.Directly.to.Consumers.)
+greens$Production.Volume.... <- factor(greens$Production.Volume....)
+greens$Grow.in.Home. <- factor(greens$Grow.in.Home.)
+greens$Are.microgreens.the.only.agricultural.product.that.you.grow. <- factor(greens$Are.microgreens.the.only.agricultural.product.that.you.grow.)
+greens$Education.Level <- factor(greens$Education.Level)
+greens$Interview.Length <- as.numeric(greens$Interview.Length)
+
+summary(greens)
+
+sd(greens$Interview.Length, na.rm = TRUE)
+
+```
+
+```{r}
+
+summary(greens$Sell.Directly.to.Consumers.)
+
+# Yes = 40
+# No = 7
+
+#Sell directly to consumers 
+
+#85.1% n = 40
+
+summary(greens$Production.Volume....)
+
+#<5k = 10; 21.3%
+#5-10k = 6; 12.8%
+#10-25k = 16; 34.0%
+#25-50k = 7; 14.9%
+#>50k = 8; 17.0%
+
+summary(greens$Grow.in.Home.)
+
+# Y = 33; 70.2%
+# N = 14; 29.8%
+
+summary(greens$Are.microgreens.the.only.agricultural.product.that.you.grow.)
+
+#Y = 27; 57.4  
+#N = 20; 42.6
+
+summary(greens$Education.Level)
+
+#SHS = 1; 2.1%
+#SC = 9; 19.1%
+#HS = 2; 4.2%
+#AS = 4; 8.5%
+#BS = 22; 46.8%
+#MS = 6; 12.8%
+#grad = 3; 6.4%
+
+ggplot(data=greens, aes(x=Education.Level)) + geom_histogram(stat = "count")
+```
+```{r}
+
+summary(greens$Interview.Length)
+
+```
+
+

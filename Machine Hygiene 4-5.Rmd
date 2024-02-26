@@ -1,0 +1,290 @@
+---
+title: "Machine Hygiene (2)"
+author: "Allyson Hamilton"
+date: "4/5/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#load libraries for common functions
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggbreak)
+library(patchwork)
+library(tables)
+```
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (2).txt",
+                     header = TRUE,
+                     sep = "\t")
+
+```
+
+```{r}
+hygiene <- hygiene[,-c(3,6,8:13,15:18,20,25:26)]
+```
+
+
+```{r}
+#soiling trial
+
+soiled_hygiene <- hygiene[-c(1:44),]
+```
+
+```{r}
+#This plot is almost what I want, but I need a horizontal line at the limits of detection. See next code chunk
+
+ggplot(soiled_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type)) +   
+  geom_point(position = position_dodge2(0.05)) +
+  ylim(0,10) +
+  xlim(8.8,9.1) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with Soiling")+
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  labs(color = "Wash Type") +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13))
+
+```
+
+```{r}
+
+#The plot is good, now I just need to add labels.
+
+ggplot(soiled_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type)) +   
+  geom_point(position = position_dodge2(0.05)) +
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with Soiling")+
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "ST"),
+             aes(yintercept = 8.81), col = "black", linetype = 2) +
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "LM"),
+             aes(yintercept = 9.03), col = "black", linetype = 2) + 
+  labs(color = "Wash Type") +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13))
+
+  
+```
+
+```{r}
+#Adding Labels (compare this to the next one)
+
+ggplot(soiled_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type)) +   
+  geom_point(position = position_dodge2(0.07)) +
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with Soiling")+
+  labs(color = "Wash Type") +
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "ST"),
+             aes(yintercept = 8.81), col = "black", linetype = 2) +
+    geom_text(data = soiled_hygiene %>% filter(microbe == "ST"),
+            aes(8.7,9.03,label = "L.O.D.", vjust = 0.1, hjust = 0.1), color = "black") + 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "LM"),
+             aes(yintercept = 9.03), col = "black", linetype = 2) + 
+    geom_text(data = soiled_hygiene %>% filter(microbe == "LM"),
+            aes(8.7,9.03,label = "L.O.D.", vjust = -0.2, hjust = 0.1), color = "black") +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13)) 
+
+```
+
+
+```{r}
+
+#notice that all I have changed is the color of the horizontal line label; Now my legend is weirdly shaped
+
+ggplot(soiled_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type)) +   
+  geom_point(position = position_dodge2(0.07)) +
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with Soiling")+
+  labs(color = "Wash Type") +
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "ST"),
+             aes(yintercept = 8.81), col = "black", linetype = 2) +
+    geom_text(data = soiled_hygiene %>% filter(microbe == "ST"),
+            aes(8.7,9.03,label = "L.O.D.", vjust = 0.1, hjust = 0.1)) + 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "LM"),
+             aes(yintercept = 9.03), col = "black", linetype = 2) + 
+    geom_text(data = soiled_hygiene %>% filter(microbe == "LM"),
+            aes(8.7,9.03,label = "L.O.D.", vjust = -0.2, hjust = 0.1)) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13)) 
+```
+```{r}
+#saving
+
+soil_plot <- ggplot(soiled_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type)) +   
+  geom_point(position = position_dodge2(0.07)) +
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with Soiling")+
+  labs(color = "Wash Type") +
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "ST"),
+             aes(yintercept = 8.81), col = "black", linetype = 2) +
+    geom_text(data = soiled_hygiene %>% filter(microbe == "ST"),
+            aes(8.7,9.03,label = "L.O.D.", vjust = 0.1, hjust = 0.1), color = "black") + 
+    geom_hline(data = soiled_hygiene %>% filter(microbe == "LM"),
+             aes(yintercept = 9.03), col = "black", linetype = 2) + 
+    geom_text(data = soiled_hygiene %>% filter(microbe == "LM"),
+            aes(8.7,9.03,label = "L.O.D.", vjust = -0.2, hjust = 0.1), color = "black") +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        legend.key= element_rect(fill=NA))
+  
+
+ggsave(filename = "soil_plot.pdf", width=7, height=4, unit="in", plot = soil_plot)
+
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene_unsoil <- read.table(file = "Phase 1 - Machine Hygiene (2).txt",
+                     header = TRUE,
+                     sep = "\t")
+
+```
+```{r}
+hygiene_unsoil <- hygiene_unsoil[,-c(3,6,8:13,15:18,20,25:26)]
+
+all_hygiene <- hygiene_unsoil[!is.na(hygiene$wash_type), ]
+
+hygiene_unsoil <- hygiene_unsoil[-c(1:4, 11:14, 27:30, 34:37,41:62),]
+```
+
+```{r}
+
+ggplot(all_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(labels = c("unsoiled", "soiled"), values = c(16, 17)) + 
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with and without Soiling")+
+  labs(color = "Wash Type") +
+  labs(shape = "Soil Level")+
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13)) 
+
+```
+```{r}
+#Saving Plot
+
+complete_plot <- ggplot(all_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(labels = c("unsoiled", "soiled"), values = c(1, 2)) + 
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with and without Soiling")+
+  labs(color = "Wash Type") +
+  labs(shape = "Soil Level")+
+  facet_grid(~case_when(microbe == "ST" ~ "S. Typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        legend.key= element_rect(fill=NA)) 
+
+
+ggsave(filename = "complete_plot.pdf", width=7, height=5.5, unit="in", plot = complete_plot)
+
+```
+```{r}
+#make factors for tables
+
+all_hygiene$wash_type <- as.factor(all_hygiene$wash_type)
+all_hygiene$soil <- as.factor(all_hygiene$soil)
+all_hygiene$microbe <- as.factor(all_hygiene$microbe)
+
+summary(all_hygiene)
+```
+```{r}
+
+table <- tabular(wash_type*soil*microbe~ log_reduction_limit*(mean+sd), data=all_hygiene)
+
+tabular(wash_type*soil*microbe~ CFU_recovered*(mean+sd), data=all_hygiene)
+```
+
+
+
+
+
+
+
+

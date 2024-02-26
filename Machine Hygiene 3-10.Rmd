@@ -1,0 +1,90 @@
+---
+title: "Machine Hygiene"
+author: "Allyson Hamilton"
+date: "3/10/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#load libraries for common functions
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene.txt",
+                     header = TRUE,
+                     sep = "\t")
+hygiene <- hygiene[,-c(3,7,8,9,14:17, 21:23)]
+```
+
+```{r}
+#Summarize the recovery trials
+
+recovery <- hygiene[is.na(hygiene$wash_type), ]
+```
+```{r} 
+#plotting
+
+ggplot(recovery, aes(x = log_CFU_on_cap, y = log_reduction, color = date_plated)) + 
+  geom_point(shape = 16, size = 2.0)+
+  xlab("Log CFU on Capsule") + 
+  ylab("Log Reduction") +
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  labs(color = "Date Plated") + 
+  theme(panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13))
+```
+
+```{r}
+my_theme <- theme(panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13))
+        
+```
+
+```{r}
+#treatment data
+
+treatment <- hygiene[!is.na(hygiene$wash_type), ]
+
+ggplot(treatment, aes(x = log_CFU_on_cap, y = CFU_recovered, color = wash_type)) + 
+  geom_point() +
+  xlab("Log CFU on Capsule") +
+  ylim(0,1) +
+  ylab("CFU Recovered") + 
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  labs(color = "Wash Type") +
+  theme(panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13))
+
+```
+
+

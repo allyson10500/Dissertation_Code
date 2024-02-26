@@ -1,0 +1,133 @@
+---
+title: "HOCl Poisson"
+author: "Allyson Hamilton"
+date: '2022-07-08'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("~/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing")
+
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(gridExtra)
+require(gridExtra)
+library(ggpubr)
+library(rstatix)
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+library(kableExtra)
+```
+
+```{r}
+#Jan 2022 Data
+HOCl = read.csv("HOCl Jan 2022.csv")
+
+#change factors to factors..
+HOCl$Concentration..ppm.=as.factor(HOCl$Concentration..ppm.)
+HOCl$Organic.load=as.factor(HOCl$Organic.load)
+HOCl$Time..s.=as.factor(HOCl$Time..s.)
+HOCl$Surface.Type=as.factor(HOCl$Surface.Type)
+HOCl_ave = HOCl %>%
+  group_by(Microbe, Inoculation.Method, Surface.Type, Time..s., Concentration..ppm., Organic.load) %>%
+  summarise(Log.Reduction_sd = sd(Log.Reduction),
+            Log.Reduction_mean = mean(Log.Reduction))
+summary(HOCl_ave)
+```
+```{r}
+#1000 ppm only model
+HOCl1000=HOCl[HOCl$Concentration..ppm. == '1000', ]
+```
+
+```{r}
+#histogram
+ggplot(HOCl1000, aes(x = Log.Reduction))+ geom_histogram() 
+
+# Create QQplot with ggplot2 package
+ggplot(HOCl1000, aes(sample = Log.Reduction)) +
+  stat_qq() +
+  stat_qq_line(col = "red")
+```
+```{r}
+#dot plot
+
+HOCl_raw <- ggplot(HOCl1000, aes(x = Time..s., y = Log.Reduction, color = Surface.Type, shape = Organic.load)) +   
+  geom_point(position = position_dodge(0.1)) + 
+  xlab("Time (s)") +
+  ylab("Log Reduction") + 
+  labs(color = "Surface Type") +
+  labs(shape = "Organic Load")
+
+ggsave(filename = "HOCl_raw.jpg", width=7, height=5.5, unit="in", plot = HOCl_raw)
+
+```
+
+```{r}
+#let's start some stats!!!!
+
+glm.poisson <- glm(Log.Reduction ~ Time..s. * Surface.Type * Organic.load, poisson(link = "log"), data=HOCl1000)
+summary(glm.poisson)
+
+#no overdispersion
+#no need to use quasipoisson
+#the error messages are because poissons are discrete distributions, but they can be used in this instance because log reductions are gotten from count data. If you wanted, you could calculate the difference in the number of virus put on the surface and the number of virus recovered, but you will get the same answer, and it's more work so I didn't. Plus, log reductions are more standard for us anyway.
+
+#The interactions are insignificant, so I am going to remove them
+```
+```{r}
+glm.poisson <- glm(Log.Reduction ~ Time..s. + Surface.Type + Organic.load, poisson(link = "log"), data=HOCl1000)
+summary(glm.poisson)
+
+#can see more significance when interactions are removed! YAY.
+#Organic load is also insignificant and can be removed
+```
+```{r}
+glm.poisson <- glm(Log.Reduction ~ Time..s. + Surface.Type, poisson(link = "log"), data=HOCl1000)
+summary(glm.poisson)
+```
+
+```{r}
+# post-hoc analysis (looking at residuals, first)
+glm.poisson.res <- emmeans(glm.poisson, ~ Time..s. : Surface.Type, level=0.95)
+glm.poisson.res <- cld(glm.poisson.res, alpha = 0.05, Letters = letters, decreasing = TRUE)
+glm.poisson.res <- data.frame(glm.poisson.res)
+glm.poisson.res 
+
+# Convert log values of estimate, asump.LCL, and asymp.UCL in number of plants
+glm.poisson.res$estimate <- exp(glm.poisson.res$emmean)
+glm.poisson.res$LCL <- exp(glm.poisson.res$asymp.LCL)
+glm.poisson.res$UCL <- exp(glm.poisson.res$asymp.UCL)
+
+# remove excess spaces in .group
+glm.poisson.res$.group <- gsub(" ", "", glm.poisson.res$.group)
+glm.poisson.res
+```
+```{r}
+# plot results
+
+glm.poisson.plot <- ggplot(data = glm.poisson.res, aes(x=Time..s., y=estimate, fill=Surface.Type))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.5, label=.group), position = position_dodge(width=0.7), size=4)+
+  xlab("Time (s)") + ylab("Estimated Log Reduction")+
+  ggtitle("")+
+  scale_fill_manual(values=c("#000000", "#ffffff"), name = "Surface Type:")
+  
+
+ggsave(filename = "glm.poisson.plot.jpg", width=7, height=5.5, unit="in", plot = glm.poisson.plot)
+
+```
+
+
+
+
+

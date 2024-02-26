@@ -1,0 +1,229 @@
+---
+title: "Transfer - Main Sheet"
+author: "Allyson Hamilton"
+date: "2022-09-19"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(gridExtra)
+library(ggpubr)
+library(rstatix)
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+library(kableExtra)
+require(mdthemes)
+```
+```{r}
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2")
+
+transfer <- read.table(file = "Phase 2 - Transfer During Extrusion (1).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+transfer <- transfer[,-c(1:3,7:11,14:17)]
+
+#make factors as factors
+transfer$soil <- factor(transfer$soil, levels = c("A", "B" , "P" , "S" ))
+transfer$cap_print <- factor(transfer$cap_print)
+transfer$microbe <- factor(transfer$microbe)
+
+#remove both category
+
+transfer <- droplevels(transfer[!transfer$cap_print == "both",])
+```
+
+```{r}
+summary(transfer)
+```
+
+```{r}
+
+microbe_names <- c("*L. monocytogenes*", "*S.* Typhimurium", "Tulane virus")
+names(microbe_names) <- c("LM", "ST", "TuV")
+
+cap_print_names <- c("Capsule", "Printed Food")
+names(cap_print_names) <- c("cap", "print")
+
+transfer_raw <- ggplot(data = transfer, aes(x = soil, y = log_CFU_recovered)) + geom_boxplot() + 
+  facet_grid(microbe~cap_print, labeller = labeller(microbe = microbe_names, cap_print = cap_print_names), scales = "free") +
+  ylab("Log CFU or PFU Recovered") + 
+  xlab("Food Matrix") +
+  scale_x_discrete(labels = c("Mixture","Butter","Protein", "Sugar"))+
+  theme(strip.text.x = ggtext::element_markdown(size = 19),
+        strip.text.y = ggtext::element_markdown(size = 19),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"))
+
+ggsave(filename = "Transfer_raw.jpg", width=12, height=8, unit="in", plot = transfer_raw, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+```
+
+```{r}
+#filter only printed food product
+
+food <- transfer %>% filter(cap_print == "print")
+
+anova.res <- lm(percent_trans ~ soil*microbe,data = food)
+
+# display anova table in the console
+anova(anova.res)
+summary(anova.res)
+
+# residual analysis
+plot(anova.res, which = 1) 
+plot(anova.res, which = 2)
+
+#qqplot is non linear, but variance looks bad
+
+#moving to binomial GLM
+```
+
+```{r}
+#consider success being transferred to the food, and failure not being transferred
+
+food$response <- cbind(food$percent_trans, 100-food$percent_trans)
+
+model <- glm(response ~ microbe * soil, family = quasibinomial(link = "logit"), data=food)
+Anova(model)
+summary(model)
+
+#many significant interaction effects!!!
+
+```
+```{r}
+
+# We need to compute a post-hoc analysis
+results <- emmeans(model, ~ soil:microbe, level=0.95) #multiple comparisons
+results <- multcomp::cld(results, alpha = 0.05, Letters = letters, decreasing = TRUE) # assign compact letters
+results <- data.frame(results)
+
+# transform the results from the multiple comparison according to the link function
+results$estimate <- (1/(1+1/exp(results$emmean)))
+results$true.SE <- (1/(1+1/exp(results$SE)))
+results$LCL <- (1/(1+1/exp(results$asymp.LCL)))
+results$UCL <- (1/(1+1/exp(results$asymp.UCL)))
+
+```
+
+
+```{r}
+
+transfer_binom <- ggplot(data = results, aes(x=soil, y=estimate, fill= microbe))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+ 
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.025, label=.group), position = position_dodge(width=0.7), size=5)+
+  #facet_grid(Organic.load~Surface.Type) +
+  scale_color_manual(values = c("deep sky blue", "dark green", "brown1")) +
+  ggtitle("") +
+  ylab("Estimated Proportion Transferred to the Printed Food") + 
+  xlab("Food Matrix") + 
+  scale_x_discrete(labels = c("Mixture","Butter","Protein", "Sugar"))+
+  scale_fill_manual(values=c("white", "light gray", "dark gray"), name = "Microorganism:", labels = c("*L. monocytogenes*", "*S.* Typhimurium", "Tulane virus"))+
+     theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "plain", size = 20),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text =  ggtext::element_markdown(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"))
+
+ggsave(filename = "transfer_binomial.jpg", width=12, height=8, unit="in", plot = transfer_binom, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#------------Code Graveyard--------------------------------------------------------------------
+
+```{r}
+#post-hoc analysis (not allowed because model isn't linear)
+require(emmeans)
+require(multcomp)
+
+lsmeans3 <- emmeans(anova.res, specs = ~microbe:soil:cap_print, level = 0.05)
+lsmeans3 <- cld(lsmeans3, alpha = 0.05, Letters = letters, decreasing = T)
+lsmeans3 <- data.frame(lsmeans3)
+
+# remove excess spaces in .group
+lsmeans3$.group <- gsub(" ", "", lsmeans3$.group)
+lsmeans3
+```
+```{r}
+anova_plot_transfer <- ggplot(data = lsmeans3, aes(x=soil, y=emmean, fill=cap_print))+
+ geom_bar(stat="identity", position = "dodge", color="black", width=0.8)+
+  geom_errorbar(aes(ymin = lower.CL, ymax =upper.CL), position = position_dodge(width=0.75), width = 0.8)+
+   facet_grid(~case_when(microbe == "ST" ~ "*S*. Typhimurium", microbe == "LM" ~ "*L. monocytogenes*")) +
+  geom_text(aes(label=.group, y = emmean+2), position = position_dodge(width=0.8), size=3) +
+  xlab("Soil Type") + 
+  ylab("Estimated CFU Recovered (%)")+
+  ggtitle("")+
+  scale_fill_manual(values=c("#0072B2", "#56B4E9"), name = "Capsule or Print:", labels = (c("Capsule" , "Print")))+
+   theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="azure3",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=12, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 10),
+              axis.text.y = element_text(color= "black", size = 10),
+              strip.background = element_rect(fill=NA),
+              strip.text = ggtext::element_markdown(size = 12))
+
+ggsave(filename = "Anova Plot Transfer with microbe.jpg", width=12, height=8, unit="in", plot = anova_plot_transfer, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+
+```

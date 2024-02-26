@@ -1,0 +1,112 @@
+---
+title: "Machine Hygiene 4-10"
+author: "Allyson Hamilton"
+date: "4/10/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#load libraries for common functions
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggbreak)
+library(patchwork)
+library(tables)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (3).txt",
+                     header = TRUE,
+                     sep = "\t")
+
+```
+```{r}
+hygiene <- hygiene[,-c(3,6,8:13,15:18,20,23:26)]
+```
+
+```{r}
+#soiling trial
+
+soiled_hygiene <- hygiene[-c(1:44, 63:66),]
+```
+
+```{r}
+soiling_plot <- ggplot(soiled_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type, shape = date_plated)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) +
+  scale_shape_manual(labels = c("Friday, April 1, 2022", "Friday, April 8, 2022"), values = c(1, 2))+
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with Soiling")+
+  labs(color = "Wash Type") +
+  facet_grid(~case_when(microbe == "ST" ~ "S. typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13)) 
+ggsave(filename = "soiling_plot.pdf", width=7, height=5.5, unit="in", plot = soiling_plot)
+
+```
+```{r}
+
+all_hygiene <- hygiene[!is.na(hygiene$wash_type), ]
+
+```
+
+
+```{r}
+hygiene_plot <- ggplot(all_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(labels = c("unsoiled", "soiled"), values = c(1, 2)) + 
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  ggtitle("Machine Hygiene with and without Soiling")+
+  labs(color = "Wash Type") +
+  labs(shape = "Soil Level")+
+  facet_grid(~case_when(microbe == "ST" ~ "S. Typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13)) 
+
+ggsave(filename = "complete_plot.pdf", width=7, height=5.5, unit="in", plot = hygiene_plot)
+
+```
+
+```{r}
+#make factors for tables
+
+all_hygiene$wash_type <- as.factor(all_hygiene$wash_type)
+all_hygiene$soil <- as.factor(all_hygiene$soil)
+all_hygiene$microbe <- as.factor(all_hygiene$microbe)
+
+summary(all_hygiene)
+```
+```{r}
+tabular(wash_type*soil*microbe~ log_reduction_limit*(mean+sd), data=all_hygiene)
+
+tabular(wash_type*soil*microbe~ CFU_recovered*(mean+sd), data=all_hygiene)
+```
+

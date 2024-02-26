@@ -1,0 +1,98 @@
+---
+title: "Machine Hygiene 4-12"
+author: "Allyson Hamilton"
+date: "4/12/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (4).txt",
+                     header = TRUE,
+                     sep = "\t")
+```
+```{r}
+#remove extra columns
+hygiene <- hygiene[,-c(3,6,8:13,15:18,21,24:27)]
+
+```
+```{r}
+#subset only washed treatments
+all_hygiene <- hygiene[!is.na(hygiene$wash_type), ]
+
+```
+
+```{r}
+
+all_hygiene_final_plot <- ggplot(all_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(labels = c("unsoiled", "soiled"), values = c(1, 2)) + 
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  labs(color = "Wash Type") +
+  labs(shape = "Soil Level")+
+  facet_grid(~case_when(microbe == "ST" ~ "S. Typhimurium",
+                       microbe == "LM" ~ "L. monocytogenes"))+ 
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13)) 
+
+ggsave(filename = "all_hygiene_final_plot.pdf", width=7, height=5.5, unit="in", plot = all_hygiene_final_plot)
+
+```
+```{r}
+#make factors for tables
+
+all_hygiene$wash_type <- as.factor(all_hygiene$wash_type)
+all_hygiene$soil <- as.factor(all_hygiene$soil)
+all_hygiene$microbe <- as.factor(all_hygiene$microbe)
+
+summary(all_hygiene)
+```
+```{r}
+tabular(wash_type*soil*microbe~ log_reduction_limit*(mean+sd), data=all_hygiene)
+
+tabular(wash_type*soil*microbe~ log_CFU_recovered*(mean+sd), data=all_hygiene)
+```
+```{r}
+
+complete_log_reduction_vector <- c(8.74, 9.02, 8.91, 8.83, 8.98, 9.04, 8.95, 8.62)
+mean(complete_log_reduction_vector)
+sd(complete_log_reduction_vector)
+
+incomplete_log_reduction_vector <- c(8.14, 7.70, 5.28, 6.69)
+mean(incomplete_log_reduction_vector)
+sd(incomplete_log_reduction_vector)
+
+```
+```{r}
+t.test(complete_log_reduction_vector, incomplete_log_reduction_vector)
+```
+```{r}
+regression <- lm(log_CFU_recovered ~ microbe*wash_type*soil, data= all_hygiene)
+anova(regression)
+summary(regression)
+```
+```{r}
+# compute confidence interval around parameter estimates
+confint(regression, level = 0.95)
+
+# validating assumptions
+plot(regression, which=1) # residuals = f(fitted values)
+plot(regression, which=2) # Q-Q plot
+```
+
+

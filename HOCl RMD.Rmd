@@ -1,0 +1,323 @@
+---
+title: "HOCl Poisson"
+author: "Allyson Hamilton"
+date: '2022-07-08'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(gridExtra)
+require(gridExtra)
+library(ggpubr)
+library(rstatix)
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+library(kableExtra)
+library(EnvStats)
+```
+
+```{r}
+setwd("~/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Adam Papers/HOCl")
+
+HOCl <- read.table(file = "HOCl Jan 2022.txt",
+                     header = TRUE,
+                     sep = "\t")
+
+#HOCl <- HOCl[,-c(1:4,6,10,11)]
+
+```
+
+
+```{r}
+#change factors to factors..
+HOCl$Concentration..ppm.=as.factor(HOCl$Concentration..ppm.)
+HOCl$Organic.load=as.factor(HOCl$Organic.load)
+HOCl$Time..s.=as.factor(HOCl$Time..s.)
+HOCl$Surface.Type=as.factor(HOCl$Surface.Type)
+
+#remove control data
+
+HOCl <- droplevels(HOCl[!HOCl$Concentration..ppm. == "0",])
+```
+
+```{r}
+summary(HOCl)
+
+epdfPlot(HOCl$Log.Reduction)
+
+epdfPlot(HOCl$CFU.or.PFU.recovered)
+
+qqnorm(log(HOCl$non.zero, base = exp(1)))
+qqline(log(HOCl$non.zero, base = exp(1)))
+
+```
+
+```{r}
+#ggplot
+HOCl_raw <- ggplot(HOCl, aes(x = Time..s., y = Log.Reduction, shape = Concentration..ppm.))+ geom_point(size = 5, position = position_dodge(0.35)) + facet_grid(Organic.load~Surface.Type) + 
+  labs(color = "Time (s):") +
+  labs(shape = "HOCl Concentration (ppm):") +
+  xlab("Time (s)") +
+  ylab("Log Reduction") +
+  ylim(0, 6.5) +
+  scale_shape_manual(values = c(21,24)) + 
+  scale_color_manual(values = c("deep sky blue", "black")) +
+   theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "plain", size = 20),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.x = element_line(color="grey45", linetype="solid", size=.25),
+        panel.grid.minor.x = element_line(color="grey45", linetype="solid", size=0.25),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.25),
+        panel.grid.minor.y = element_line(color="white", linetype="solid", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "HOCl Raw Data.jpg", width=12, height=8, unit="in", plot = HOCl_raw, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Adam Papers/HOCl/", dpi = 100, device = "tiff")
+
+```
+```{r}
+# Create QQplot with ggplot2 package
+qq_plot_HOCl <- ggplot(HOCl, aes(sample = Log.Reduction)) +
+  stat_qq() +
+  stat_qq_line(col = "red")
+
+ggsave(filename = "qq_plot_HOCl.jpg", width=12, height=8, unit="in", plot = qq_plot_HOCl, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Adam Papers/HOCl/", dpi = 100, device = "tiff")
+
+```
+```{r}
+
+#try a linear model, fails homo of variance and normality, so GLM 
+
+anova.res <- lm(Log.Reduction ~ Concentration..ppm.*Organic.load*Surface.Type*Time..s. 
+                -Concentration..ppm.:Organic.load:Surface.Type:Time..s.
+                -Concentration..ppm.:Surface.Type:Time..s.
+                -Organic.load:Surface.Type:Time..s.
+                -Concentration..ppm.:Organic.load:Surface.Type, data = HOCl)
+
+# display anova table in the console
+anova(anova.res)
+summary(anova.res)
+
+# residual analysis
+# Linear Model looks awful!
+homoscedacity <- plot(anova.res, which = 1) 
+
+summary(abs(anova.res$residuals))
+
+ggsave(filename = "homoscedacity.jpg", width=12, height=8, unit="in", plot = homoscedacity, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Adam Papers/HOCl/", dpi = 100, device = "tiff")
+
+plot(anova.res, which = 2)
+
+#GLM
+
+```
+```{r}
+
+#binomial model
+#the failure variable is the amount put on-the log reduction
+# 
+# HOCl$response <- cbind(HOCl$Log.Reduction, HOCl$failure)
+# 
+# model2 <- glm(response ~ Concentration..ppm. * Organic.load * Surface.Type * Time..s.
+#               -Concentration..ppm.:Organic.load:Surface.Type:Time..s.
+#               -Concentration..ppm.:Organic.load:Surface.Type
+#               -Concentration..ppm.:Surface.Type:Time..s.
+#               -Organic.load:Surface.Type:Time..s.
+#               #-Concentration..ppm.:Organic.load:Time..s.
+#                 , family = quasibinomial(link = "logit"), data=HOCl)
+# anova(model2)
+# summary(model2)
+
+
+#signficant overdispersion
+
+```
+
+# --------------- Post-hoc analysis ------------
+
+# ```{r} 
+# # We need to compute a post-hoc analysis
+# results <- emmeans(model2, ~ Organic.load:Time..s.:Concentration..ppm.:Surface.Type, level=0.95) #multiple comparisons
+# results <- multcomp::cld(results, alpha = 0.05, Letters = letters, decreasing = TRUE) # assign compact letters
+# results <- data.frame(results)
+# 
+# # transform the results from the multiple comparison according to the link function
+# results$estimate <- (1/(1+1/exp(results$emmean)))
+# results$true.SE <- (1/(1+1/exp(results$SE)))
+# results$LCL <- (1/(1+1/exp(results$asymp.LCL)))
+# results$UCL <- (1/(1+1/exp(results$asymp.UCL)))
+
+#Something is wrong with my results. I haven't divided by 1000 yet and my estimates are ~0.01 when they should be on the order of ~1. I am really not sure what I need to do.
+
+
+```
+
+#```{r}
+
+ HOCl_binom <- ggplot(data = results, aes(x=Time..s., y=estimate, fill= Concentration..ppm.))+
+  geom_bar(stat="identity", position = position_dodge(width=0.6), color="black", width=0.6)+
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.6), width=0.4)+
+  geom_text(aes(y = UCL+0.05, label=.group), position = position_dodge(width = 0.6), size=4)+
+  facet_grid(Organic.load~Surface.Type) +
+  scale_color_manual(values = c("deep sky blue", "dark green", "brown1")) +
+  ggtitle("") +
+  ylab("Estimated Log Proportion Reduced") +
+  xlab("Time (s)") +
+  scale_fill_manual(values=c("white", "gray"), name = "Concentration (ppm):")+
+     theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "plain", size = 20),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"))
+
+ggsave(filename = "HOCl_binomial.jpg", width=12, height=8, unit="in", plot = HOCl_binom, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Adam Papers/HOCl/")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#Poisson model
+
+glm.poisson <- glm(Log_reduction_tenth ~ Concentration..ppm. * Organic.load * Surface.Type * Time..s.
+                   -Concentration..ppm.:Organic.load:Surface.Type:Time..s.
+                   -Organic.load:Surface.Type:Time..s., family = quasipoisson(link = "log") , data=HOCl)
+
+anova(glm.poisson)
+summary(glm.poisson)
+
+
+#much overdispersion
+#no need to use quasipoisson
+#Insignificant 4-way interaction
+```
+```{r}
+# post-hoc analysis (looking at residuals, first)
+glm.poisson.res <- emmeans(glm.poisson, ~ Concentration..ppm.*Organic.load*Surface.Type*Time..s., level=0.95)
+glm.poisson.res <- cld(glm.poisson.res, alpha = 0.05, Letters = letters, decreasing = TRUE)
+glm.poisson.res <- data.frame(glm.poisson.res)
+glm.poisson.res <- glm.poisson.res 
+
+# Convert log values of estimate, asymp.LCL, and asymp.UCL in number of plants
+glm.poisson.res$estimate <- exp(glm.poisson.res$emmean)/100
+glm.poisson.res$LCL <- exp(glm.poisson.res$asymp.LCL)/100
+glm.poisson.res$UCL <- exp(glm.poisson.res$asymp.UCL)/100
+
+# remove excess spaces in .group
+glm.poisson.res$.group <- gsub(" ", "", glm.poisson.res$.group)
+glm.poisson.res
+
+subset(glm.poisson.res, Surface.Type == "Stainless Steel" & Time..s. == "60" )
+
+```
+
+```{r}
+# plot results
+
+glm.poisson.plot <- ggplot(data = glm.poisson.res, aes(x=Time..s., y=estimate, fill= Concentration..ppm.))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+ 
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.2, label=.group), position = position_dodge(width=0.7), size=5)+
+  facet_grid(Organic.load~Surface.Type) +
+  scale_color_manual(values = c("deep sky blue", "dark green", "brown1")) +
+  ggtitle("") +
+  ylab("Estimated Mean Log Reduction") + 
+  xlab("Time (s)") + 
+  scale_fill_manual(values=c("white", "light gray"), name = "Concentration (ppm):")+
+     theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "plain", size = 20),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"))
+  
+  
+ggsave(filename = "HOCl_poisson.jpg", width=12, height=8, unit="in", plot = glm.poisson.plot, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Non-Thesis Paper Writing/Adam Papers/HOCl/")
+
+```
+
+
+
+
+

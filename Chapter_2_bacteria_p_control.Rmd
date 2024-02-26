@@ -1,0 +1,292 @@
+---
+title: "Chapter_2_bacteria_p_control"
+author: "Allyson Hamilton"
+date: '2022-07-26'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# import required libraries
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+require(writexl)
+require(ggtext)
+require(GGally)
+require(VGAM)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2")
+
+extrusion_p_control <- read.table(file = "Phase 2 - Transfer During Extrusion p control (1).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+extrusion_p_control <- extrusion_p_control[,-c(1:3,7:9,14)]
+
+#make factors as factors
+extrusion_p_control$soil <- factor(extrusion_p_control$soil, levels = c("A", "B" , "P" , "S" ))
+extrusion_p_control$cap_print <- factor(extrusion_p_control$cap_print)
+extrusion_p_control$microbe <- factor(extrusion_p_control$microbe)
+```
+```{r}
+summary(extrusion_p_control)
+```
+```{r}
+#extrusion without the both category since it is redundant
+
+extrusion_cap_print_p_control  <- droplevels(extrusion_p_control[!extrusion_p_control$cap_print == "both",])
+```
+
+```{r}
+
+#limiting and removing negatives
+capsule_or_print_p_control <- ggplot(extrusion_cap_print_p_control, aes(x = soil, y = log_reduction_limit, color = cap_print, shape = microbe)) + 
+  geom_point(position = position_dodge2(0.1), size = 3) + 
+  ggtitle("") +
+  ylim(0,2) + 
+  xlab("Soil Component") +
+  ylab("Log Reduction") + 
+  labs(color = "Capsule or Printed Element:") +
+  labs(shape = "Microorganism")+
+  #scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Capsule_and_Print_Primary_data_p_control.jpg", width=7, height=5.5, unit="in", plot = capsule_or_print_p_control, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+```
+
+```{r}
+#raw_data
+
+capsule_or_print_p_control_no_limit <- ggplot(extrusion_cap_print_p_control, aes(x = soil, y = log_reduction, color = cap_print, shape = microbe)) + 
+  geom_point(position = position_dodge2(0.1), size = 3) + 
+  ggtitle("") +
+  ylim(-1,2) + 
+  xlab("Soil Component") +
+  ylab("Log Reduction") + 
+  labs(color = "Capsule or Printed Element:") +
+  labs(shape = "Microorganism")+
+  #scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Capsule_and_Print_Primary_data_p_control_no_limit.jpg", width=7, height=5.5, unit="in", plot = capsule_or_print_p_control_no_limit, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+```
+
+```{r}
+
+capsule_or_print_p_control_transfer <- ggplot(extrusion_cap_print_p_control, aes(x = soil, y = percent_trans, color = cap_print, shape = microbe)) + 
+  geom_point(position = position_dodge2(0.1), size = 3) + 
+  ggtitle("") +
+  #ylim(-1,2) + 
+  xlab("Soil Component") +
+  ylab("Percent Transfered in Each Component") + 
+  labs(color = "Capsule or Printed Element:") +
+  labs(shape = "Microorganism")+
+  #scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Capsule_and_Print_Primary_data_p_control_transfer.jpg", width=7, height=5.5, unit="in", plot = capsule_or_print_p_control_transfer, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+```
+```{r}
+#capsule and print are not independent, so we will just look at transfer to the printed product
+
+#extrusion_print_p_control  <- droplevels(extrusion_cap_print_p_control[!extrusion_p_control$cap_print == "cap",])
+
+```
+
+
+
+```{r}
+#try a linear model
+
+anova.res <- lm(percent_trans ~ microbe*soil*cap_print
+                -microbe:soil:cap_print
+                -microbe:soil,
+                data = extrusion_cap_print_p_control)
+
+# display anova table in the console
+anova(anova.res)
+summary(anova.res)
+
+# residual analysis
+# Linear Model looks good!
+plot(anova.res, which = 1) 
+plot(anova.res, which = 2)
+
+confint(anova.res, level =0.95)
+```
+
+
+```{r}
+#post-hoc analysis
+require(emmeans)
+require(multcomp)
+
+lsmeans <- emmeans(anova.res, specs = ~microbe:soil:cap_print, level = 0.05)
+lsmeans <- cld(lsmeans, alpha = 0.05, Letters = letters, decreasing = T)
+lsmeans <- data.frame(lsmeans)
+
+# remove excess spaces in .group
+lsmeans$.group <- gsub(" ", "", lsmeans$.group)
+lsmeans
+
+```
+
+```{r}
+#plot
+
+transfer_plot <- ggplot(data = lsmeans, aes(x=soil, y=emmean, fill=cap_print))+
+  geom_bar(stat="identity", position = position_dodge(), color="black", width=1)+
+  geom_errorbar(aes(ymin = lower.CL, ymax =upper.CL), position = position_dodge(width=1))+
+   facet_grid(~case_when(microbe == "ST" ~ "*S*. Typhimurium",
+                       microbe == "LM" ~ "*L. monocytogenes*")) +
+  geom_text(aes(label=.group, y = emmean+6), position = position_dodge(width=1), size=2.75)+
+  xlab("Soil Type") + 
+  ylab("Estimated Percent Transferred or Remaining")+
+  ggtitle("")+
+  scale_fill_manual(values=c("#0072B2", "#56B4E9"), name = "Capsule or Print:", labels = (c("Capsule" , "Print")))+
+   theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="azure3",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=12, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 10),
+              axis.text.y = element_text(color= "black", size = 10),
+              strip.background = element_rect(fill=NA),
+              strip.text = ggtext::element_markdown(size = 12))
+
+ggsave(filename = "Transfer_plot.jpg", width=7, height=5.5, unit="in", plot = transfer_plot, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+
+```
+
+
+```{r}
+
+#Repeat with CFU proportion
+
+#try a linear model2
+
+anova.res2 <- lm(percent_trans_recov ~ microbe*soil*cap_print
+                 -microbe:soil:cap_print,
+                data = extrusion_cap_print_p_control)
+
+# display anova table in the console
+anova(anova.res2)
+summary(anova.res2)
+
+# residual analysis
+plot(anova.res2, which = 1) 
+plot(anova.res2, which = 2)
+```
+
+
+```{r}
+#post-hoc analysis 
+require(emmeans)
+require(multcomp)
+
+lsmeans2 <- emmeans(anova.res2, specs = ~microbe:soil:cap_print, level = 0.05)
+lsmeans2 <- cld(lsmeans2, alpha = 0.05, Letters = letters, decreasing = T)
+lsmeans2 <- data.frame(lsmeans2)
+
+#remove excess spaces in .group
+lsmeans2$.group <- gsub(" ", "", lsmeans2$.group)
+lsmeans2
+
+```
+
+```{r}
+
+transfer_plot2 <- ggplot(data = lsmeans2, aes(x=soil, y=emmean, fill=cap_print))+
+  geom_bar(stat="identity", position = position_dodge(), color="black", width=1)+
+  geom_errorbar(aes(ymin = lower.CL, ymax =upper.CL), position = position_dodge(width=1))+
+  facet_grid(~case_when(microbe == "ST" ~ "*S*. Typhimurium",
+                     microbe == "LM" ~ "*L. monocytogenes*")) +
+  geom_text(aes(label=.group, y = emmean+6), position = position_dodge(width=1), size=2.75)+
+  xlab("Soil Type") + 
+  ylab("Estimated Percent Transferred or Remaining")+
+  ggtitle("")+
+  scale_fill_manual(values=c("#0072B2", "#56B4E9"), name = "Capsule or Print:", labels = (c("Capsule" , "Print")))+
+   theme(panel.background = element_rect(fill=NA, color="grey15"),
+           panel.grid.major.x =  element_blank(),
+           panel.grid.minor.x = element_blank(),
+           panel.grid.major.y = element_line(color="azure3",linetype="dotted"),
+           legend.position = "right",
+           axis.text = element_text(size=14, color="grey15"),
+           axis.title = element_text(size=12, color="black"),
+           legend.title = element_text(size=14),
+           legend.text = element_text(size=14),
+           plot.title = element_text(size=14, face="bold"),
+           axis.text.x = element_text(color = "black", face = "plain", size = 10),
+           axis.text.y = element_text(color= "black", size = 10),
+           strip.background = element_rect(fill=NA),
+           strip.text = ggtext::element_markdown(size = 12))
+
+ggsave(filename = "Transfer_plot2.jpg", width=7, height=5.5, unit="in", plot = transfer_plot2, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2/")
+
+```
+
+```{r}
+#I think the problem is that my data is heavily censored at 100%
+#tobit regression for censored data
+
+tobit <- vglm(percent_trans_recov ~ soil+microbe+cap_print, tobit(Upper = 100), data = extrusion_cap_print_p_control)
+
+summary(tobit)
+
+
+ctable <- coef(summary(tobit))
+pvals <- 2 * pt(abs(ctable[, "z value"]), df.residual(tobit), lower.tail = FALSE)
+b <- coef(tobit)
+se <- sqrt(diag(vcov(tobit)))
+
+cbind(ctable, pvals, LL = b - qnorm(0.975) * se, UL = b + qnorm(0.975) * se)
+
+```

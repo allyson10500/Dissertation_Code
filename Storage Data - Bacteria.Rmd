@@ -1,0 +1,435 @@
+---
+title: "Phase 3 - Storage"
+author: "Allyson Hamilton"
+date: "2023-06-12"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(gridExtra)
+library(ggpubr)
+library(rstatix)
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+library(kableExtra)
+require(writexl)
+require(mdthemes)
+
+```
+```{r}
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 3")
+
+storage <- read.table(file = "Storage Experimental Data.txt",
+                     header = TRUE,
+                     sep = "\t")
+```
+```{r}
+
+#make factors as factors
+storage$temp <- factor(storage$temp, levels = c("20", "4" , "-18"))
+storage$time <- factor(storage$time, levels = c("0", "0.25" , "0.5", "1", "3" , "5"))
+storage$cap_print <- factor(storage$cap_print)
+storage$microbe <- factor(storage$microbe)
+
+```
+
+```{r}
+
+summary(storage)
+
+LS_storage <- storage[storage$microbe %in% c("L", "S"), ]
+AYM_storage <- storage[storage$microbe %in% c("A", "YM"),]
+
+```
+```{r}
+
+microbe_names <- c("*L. monocytogenes*", "*Salmonella* serovars", "Aerobic Counts", "Yeast")
+names(microbe_names) <- c("L", "S", "A", "YM")
+
+cap_print_names <- c("Capsule", "Printed Food")
+names(cap_print_names) <- c("cap", "print")
+
+temp_names <- c("4°C", "20°C", "-18°C")
+names(temp_names) <- c("4", "20", "-18")
+
+time_names <- c("0 day" , "1 day" , "5 days" )
+names(time_names) <- c("0", "1", "5")
+
+storage_raw <- ggplot(data = LS_storage, aes(x = time, y = log_CFU_g_recovered)) + geom_boxplot() + 
+  facet_grid(microbe~cap_print*temp, labeller = labeller(microbe = microbe_names, cap_print = cap_print_names, temp = temp_names), scales = "free_x") +
+  ylab("Log CFU/g Recovered") + 
+  xlab("Time (days)") +
+  theme(strip.text.x = ggtext::element_markdown(size = 15),
+        strip.text.y = ggtext::element_markdown(size = 15),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=15),
+        axis.text = element_text(size=10, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=15),
+        legend.text = element_text(size = 15),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"))
+
+ggsave(filename = "storage_raw.jpg", width=12, height=8, unit="in", plot = storage_raw, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 3/")
+
+```
+
+```{r}
+
+microbe_names <- c("*L. monocytogenes*", "*Salmonella* serovars", "Aerobic Counts", "Yeast")
+names(microbe_names) <- c("L", "S", "A", "YM")
+
+temp_names <- c("20°C", "4°C", "-18°C")
+names(temp_names) <- c("20", "4", "-18")
+
+
+storage_raw_AYM <- ggplot(data = AYM_storage, aes(x = time, y = log_CFU_g_recovered)) + geom_boxplot() + 
+  facet_grid(microbe~temp, labeller = labeller(microbe = microbe_names, temp = temp_names), scales = "free_x") +
+  ylab("Log CFU/g Recovered") + 
+  xlab("Time (days)") +
+ #scale_x_discrete(labels = c("0","0.25","0.5", "1", "3", "5"))+
+ theme(strip.text.x = ggtext::element_markdown(size = 15),
+        strip.text.y = ggtext::element_markdown(size = 15),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=15),
+        axis.text = element_text(size=15, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=15),
+        legend.text = element_text(size = 15),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"))
+
+ggsave(filename = "storage_raw_AYM.jpg", width=12, height=8, unit="in", plot = storage_raw_AYM, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 3/")
+```
+
+```{r}
+
+anova.res3 <- lm(log_CFU_g_recovered ~ time*microbe*cap_print*temp, 
+                data = LS_storage)
+
+# display anova table in the console
+anova(anova.res3)
+summary(anova.res3)
+
+# residual analysis
+plot(anova.res3, which = 1) 
+plot(anova.res3, which = 2)
+
+#qqplot is linear, but variance maybe okay
+
+#doing ANOVA
+
+```
+```{r}
+require(emmeans)
+require(multcomp)
+
+lsmeans3 <- emmeans(anova.res3, specs = ~time:microbe:cap_print:temp, level = 0.05)
+lsmeans3 <- cld(lsmeans3, alpha = 0.05, Letters = letters, decreasing = T)
+lsmeans3 <- data.frame(lsmeans3)
+
+# remove excess spaces in .group
+lsmeans3$.group <- gsub(" ", "", lsmeans3$.group)
+lsmeans3
+
+lsmeans3 <- lsmeans3 %>% drop_na()
+
+options(max.print=1000000)
+pairs(lsmeans3, adjust = "none", )
+
+```
+```{r}
+
+
+
+model1_plot <- ggplot(data = lsmeans3, aes(x=time, y=emmean, fill=cap_print)) +
+  geom_col(stat = "Identity", position = position_dodge(0.9), width = 0.9, color="black") +
+  facet_grid(microbe~temp, labeller = labeller(microbe = microbe_names, temp = temp_names), scales = "free") +
+  geom_errorbar(aes(ymin = lower.CL, ymax =upper.CL), position = position_dodge(width=0.9), width=0.9, scales = "free")+
+  geom_text(aes(label=.group, y = emmean+.3), position = position_dodge(width=0.9), color="black", width=0.9, size = 3, scales = "free")+
+  xlab("Time (days)") + 
+  ylab("Estimated Log CFU/g Recovered")+
+  ggtitle("")+
+  scale_fill_manual(values=c("white", "darkgray"), name = "Source:" , labels = cap_print_names, drop = FALSE)+
+      theme(strip.text.x = ggtext::element_markdown(size = 19),
+        strip.text.y = ggtext::element_markdown(size = 19),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="white", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="white", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"),
+        legend.position = "bottom")
+
+ggsave(filename = "Anova_model.jpg", width=12, height=8, unit="in", plot = model1_plot, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 3/")
+
+```
+
+
+```{r}
+anova.res4 <- lm(log_CFU_g_recovered ~ time*microbe*temp, 
+                data = AYM_storage)
+
+# display anova table in the console
+anova(anova.res4)
+summary(anova.res4)
+
+# residual analysis
+plot(anova.res4, which = 1) 
+plot(anova.res4, which = 2)
+
+#qqplot is linear, but variance maybe okay
+
+#doing ANOVA
+```
+```{r}
+require(emmeans)
+require(multcomp)
+
+lsmeans4 <- emmeans(anova.res4, specs = ~time:microbe:temp, level = 0.05)
+lsmeans4 <- cld(lsmeans4, alpha = 0.05, Letters = letters, decreasing = T)
+lsmeans4 <- data.frame(lsmeans4)
+
+# remove excess spaces in .group
+lsmeans4$.group <- gsub(" ", "", lsmeans4$.group)
+lsmeans4
+
+```
+```{r}
+
+lsmeans4 <- lsmeans4 %>% drop_na()
+
+contrast(lsmeans4)
+
+model2_plot <- ggplot(data = lsmeans4, aes(x=time, y=emmean))+
+   geom_col(stat = "Identity", position = position_dodge(0.9), width = 0.9, color="black", fill = "white") +
+  facet_grid(microbe~temp, labeller = labeller(microbe = microbe_names, temp = temp_names), scales = "free") +
+  geom_errorbar(aes(ymin = lower.CL, ymax =upper.CL), position = position_dodge(width=0.9), width=0.9, scales = "free")+
+  geom_text(aes(label=.group, y = emmean+.3), position = position_dodge(width=0.9), color="black", width=0.9, size = 4, scales = "free")+
+  xlab("Time (days)") + 
+  ylab("Estimated Log CFU/g Recovered")+
+  ggtitle("")+
+  scale_fill_manual(values=c("white", "darkgray"), name = "Source:" , labels = cap_print_names, drop = FALSE)+
+      theme(strip.text.x = ggtext::element_markdown(size = 19),
+        strip.text.y = ggtext::element_markdown(size = 19),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="white", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="white", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"),
+        legend.position = "bottom")
+
+ggsave(filename = "ANOVA model YM.jpg", width=12, height=8, unit="in", plot = model2_plot, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 3/")
+
+```
+
+```{r}
+
+#pH and water activity analysis
+
+pH_data <- storage$pH
+
+pH_data <- pH_data %>% na.exclude()
+
+summary(pH_data)
+sd(pH_data)
+range(pH_data)
+
+aw_data <- storage$aw
+
+aw_data <- aw_data %>% na.exclude()
+
+summary(aw_data)
+sd(aw_data)
+range(aw_data)
+
+scaleFUN <- function(x) sprintf("%.2f", x)
+
+pH_aw_plot <- ggplot(data = storage, aes(x=pH, y=aw))+ geom_point()    +
+  xlab("pH") + 
+  ylab("Water Activity")+
+  ggtitle("")+
+  scale_x_continuous(labels=scaleFUN,) +
+  xlim(5.7,5.9) +
+  scale_fill_manual(values=c("white", "darkgray"), name = "Source:" , labels = cap_print_names, drop = FALSE)+
+      theme(strip.text.x = ggtext::element_markdown(size = 19),
+        strip.text.y = ggtext::element_markdown(size = 19),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="white", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="white", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"),
+        legend.position = "bottom")
+
+
+```
+
+
+```{r}
+
+
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 3")
+
+quality <- read.table(file = "Quality.txt",
+                     header = TRUE,
+                     sep = "\t")
+```
+```{r}
+
+#make factors as factors
+quality$temp <- factor(quality$temp, levels = c("20", "4" , "-18"))
+quality$time <- factor(quality$time, levels = c("initial", "final"))
+```
+
+```{r}
+
+time_names <- c("Initial Timepoint", "Final Timepoint")
+names(time_names) <- c("initial" , "final" )
+temp_names <- c("4°C", "20°C", "-18°C")
+names(temp_names) <- c("4", "20", "-18")
+
+```
+
+```{r}
+
+quality_raw <- ggplot(data = quality, aes(x = pH, y = aw)) + geom_boxplot() + 
+  facet_grid(rows = vars(time), cols = vars(temp), labeller = labeller(temp = temp_names, time = time_names)) +
+  scale_x_continuous(limits = c(5.70,5.90), breaks = c(5.7, 5.8, 5.9))+
+  ylab("Water Activity") +
+  theme(strip.text.x = ggtext::element_markdown(size = 10),
+        strip.text.y = ggtext::element_markdown(size = 10),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=12),
+        axis.text = element_text(size=10, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=15),
+        legend.text = element_text(size = 15),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"))
+
+
+```
+
+```{r}
+
+anova.res.aw <- lm(aw ~ time*temp, 
+                data = quality)
+
+# display anova table in the console
+anova(anova.res.aw)
+summary(anova.res.aw)
+
+# residual analysis
+plot(anova.res.aw, which = 1) 
+plot(anova.res.aw, which = 2)
+
+#qqplot is s-shaped, poisson
+
+glm.poisson <- glm(aw ~  time*temp
+                       , family = poisson(link=log), data=quality)
+summary(glm.poisson)
+
+```
+
+```{r}
+
+anova.res.pH <- lm(pH ~ time*temp, 
+                data = quality)
+
+# display anova table in the console
+anova(anova.res.pH)
+summary(anova.res.pH)
+
+# residual analysis
+plot(anova.res.pH, which = 1) 
+plot(anova.res.pH, which = 2)
+
+mean(quality$pH)
+
+```
+
+
+```{r}
+pH_xyl <- c(5.89, 5.90)
+
+t.test(pH_xyl, mu = 5.815833, alternative = "two.sided")
+
+aw_xyl <- c(0.7979, 0.7976)
+t.test(aw_xyl, mu = 0.844175, alternative = "two.sided")
+
+
+```
+```{r}
+
+AYM_storage_0 <- dplyr::filter(AYM_storage, time %in% c("0"))
+
+AYM_storage_0_Y <- dplyr::filter(AYM_storage_0, microbe %in% c("YM"))
+
+AYM_storage_0_A <- dplyr::filter(AYM_storage_0, microbe %in% c("A"))
+
+```
+
+```{r}
+
+mean(AYM_storage_0_A$log_CFU_g_recovered)
+sd(AYM_storage_0_A$log_CFU_g_recovered)
+
+```
+
+```{r}
+
+inoculum <- storage[storage$time == 0 , ]
+
+average_log_inoculum <- mean(inoculum$log_CFU_g_recovered)
+sd(inoculum$log_CFU_g_recovered)
+
+```

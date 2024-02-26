@@ -1,0 +1,144 @@
+---
+title: "Tobit For Chapter 2"
+author: "Allyson Hamilton"
+date: '2022-07-27'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# import required libraries
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+require(writexl)
+require(ggtext)
+require(GGally)
+require(VGAM)
+```
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2")
+
+extrusion_p_control <- read.table(file = "Phase 2 - Transfer During Extrusion p control (1).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+extrusion_p_control <- extrusion_p_control[,-c(1:3,7:9,14)]
+
+#make factors as factors
+extrusion_p_control$soil <- factor(extrusion_p_control$soil, levels = c("A", "B" , "P" , "S" ))
+extrusion_p_control$cap_print <- factor(extrusion_p_control$cap_print)
+extrusion_p_control$microbe <- factor(extrusion_p_control$microbe)
+```
+
+```{r}
+
+#remove both from cap_print
+extrusion_cap_print_p_control  <- droplevels(extrusion_p_control[!extrusion_p_control$cap_print == "both",])
+
+summary(extrusion_p_control)
+```
+
+```{r}
+#visualize the data
+ ggplot(extrusion_cap_print_p_control, aes(x = soil, y = percent_trans_recov))+
+  geom_point()+
+  facet_grid(~microbe)
+```
+```{r}
+#move forward with this data
+
+anova.res.p.control <- lm(percent_trans_recov ~ microbe*soil*cap_print
+                 -microbe:soil:cap_print,
+                data = extrusion_cap_print_p_control)
+
+# display anova table in the console
+anova(anova.res.p.control)
+summary(anova.res.p.control)
+
+# residual analysis
+# variance decreases with the mean
+# this means that the assumption of linear model are not validated
+# we need to analyze the data using a generalized linear model
+plot(anova.res.p.control, which = 1) 
+plot(anova.res.p.control, which = 2)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 2")
+
+extrusion_inoc <- read.table(file = "Phase 2 - Transfer During Extrusion inoc (1).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+extrusion_inoc <- extrusion_inoc[,-c(1:3,7:9,14)]
+
+#make factors as factors
+extrusion_inoc$soil <- factor(extrusion_inoc$soil, levels = c("A", "B" , "P" , "S" ))
+extrusion_inoc$cap_print <- factor(extrusion_inoc$cap_print)
+extrusion_inoc$microbe <- factor(extrusion_inoc$microbe)
+```
+
+```{r}
+#remove both from cap_print
+extrusion_cap_print_inoc  <- droplevels(extrusion_inoc[!extrusion_inoc$cap_print == "both",])
+
+summary(extrusion_cap_print_inoc)
+```
+```{r}
+#visualize the data
+ ggplot(extrusion_cap_print_inoc, aes(x = soil, y = percent_trans_recov))+
+  geom_point()+
+  facet_grid(~microbe)
+```
+```{r}
+#move forward with this data
+
+anova.res.inoc <- lm(percent_trans_recov ~ microbe*soil*cap_print
+                 -microbe:soil:cap_print,
+                data = extrusion_cap_print_inoc)
+
+# display anova table in the console
+anova(anova.res.inoc)
+summary(anova.res.inoc)
+
+# residual analysis
+# variance increases with the mean
+# this means that the assumption of linear model are not validated
+# we need to analyze the data using a generalized linear model
+plot(anova.res.inoc, which = 1) 
+plot(anova.res.inoc, which = 2)
+```
+
+```{r}
+#I think the problem is that my data is heavily censored at 100%
+#tobit regression for censored data seems right?
+
+#https://stats.oarc.ucla.edu/r/dae/tobit-models/#:~:text=The%20tobit%20model%2C%20also%20called,below%20and%20above%2C%20respectively).
+
+tobit <- vglm(percent_trans_recov ~ soil+microbe+cap_print, tobit(Upper = 100), data = extrusion_cap_print_p_control)
+
+summary(tobit)
+
+
+ctable <- coef(summary(tobit))
+pvals <- 2 * pt(abs(ctable[, "z value"]), df.residual(tobit), lower.tail = FALSE)
+b <- coef(tobit)
+se <- sqrt(diag(vcov(tobit)))
+
+cbind(ctable, pvals, LL = b - qnorm(0.975) * se, UL = b + qnorm(0.975) * se)
+
+```
+
+

@@ -1,0 +1,63 @@
+---
+title: "Salmonella Vs Listeria for Machine Hygiene Pub"
+author: "Allyson Hamilton"
+date: '2022-07-07'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# import required libraries
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+library(rstatix)
+library(kableExtra)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (6).txt",
+                     header = TRUE,
+                     sep = "\t")
+
+#remove extra columns
+hygiene <- hygiene[,-c(3,6,8:13,15:18,21,24:27)]
+```
+
+```{r}
+#remove  no wash treatments
+hygiene <-subset(hygiene, wash_type!= "NA")
+
+hygiene$microbe <- as.factor(hygiene$microbe)
+hygiene$soil <-as.factor(hygiene$soil)
+hygiene$wash_type <-as.factor(hygiene$wash_type)
+
+hygiene["wash_type"][hygiene["wash_type"] == "heavy.L"] <- "heavy"
+hygiene["wash_type"][hygiene["wash_type"] == "speed.L"] <- "speed"
+
+hygiene$soil <- factor(hygiene$soil, levels = c("F", "A", "B" , "P" , "S" ))
+
+
+hygiene$soil <- recode_factor(hygiene$soil, F = "unsoiled", A = "mixture", B = "butter" , P = "protein" , S = "sugar")
+
+summary(hygiene)
+
+all_hygiene <- hygiene
+```
+```{r}
+glm.quasipoisson <- glm(log_reduction_limit ~ microbe*wash_type, family = quasipoisson(link = "log"), data=all_hygiene)
+summary(glm.quasipoisson)
+```
+

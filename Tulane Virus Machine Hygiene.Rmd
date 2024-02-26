@@ -1,0 +1,271 @@
+---
+title: "Tulane Virus Machine Hygiene"
+author: "Allyson Hamilton"
+date: "2022-09-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# import required libraries
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+require(writexl)
+```
+
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 1")
+
+Tulane <- read.table(file = "Phase 1 - Machine Hygiene - Tulane.txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+Tulane <- Tulane[,-c(1:3,6:9,12:17)]
+
+#subset only washed treatments
+Tulane <- Tulane[!is.na(Tulane$wash_type), ]
+
+```
+
+```{r}
+#order the legend
+
+Tulane$soil <- factor(Tulane$soil, levels = c("F", "A", "B" , "P" , "S" )) #assign factor and labels
+
+
+Tulane$soil <- recode_factor(Tulane$soil, F = "unsoiled", A = "mixture", B = "butter" , P = "protein" , S = "sugar") #recode labels for plots
+
+Tulane$wash_type <- factor(Tulane$wash_type) #make wash type a factor
+Tulane$cap_place <- factor(Tulane$cap_place) #make cap_place a factor
+
+```
+
+```{r}
+summary(Tulane)
+```
+```{r}
+#dot plot
+
+Tulane_dot_plot <- ggplot(Tulane, aes(x = log_PFU_on_cap, y = log_reduction, color = wash_type, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(values = c(1, 2, 3, 4 ,7)) + 
+  ggtitle("") +
+ # ylim(0,10) + 
+  xlab("Log PFU on Capsule") +
+  ylab("Log Reduction") + 
+  labs(color = "Cleaning Protocol:") +
+  labs(shape = "Soil Type:")+
+  scale_color_manual(values = c("deep sky blue", "dark green", "brown1"), labels = c("DHC", "MW" , "DSC"))  +
+  scale_y_continuous(limits = c(0,7.5), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Tulane_dot_plot.jpg", width=7, height=5.5, unit="in", plot = Tulane_dot_plot, dpi = 300, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+
+```
+```{r}
+#Failed to meet conditions for a LM
+model1 <- lm(log_reduction ~ wash_type*soil, data = Tulane)
+
+# display anova table in the console
+anova(model1)
+summary(aov(model1))
+
+# residual analysis
+#Extremely bad qq plot
+# we need to analyze the data using a generalized linear model
+plot(model1, which = 1) 
+plot(model1, which = 2)
+```
+
+```{r} 
+#GLM
+glm.quasipoisson <- glm(log_reduction ~  wash_type * soil
+                       , family = quasipoisson(link=log), data=Tulane)
+summary(glm.quasipoisson)
+```
+```{r}
+# post-hoc analysis
+glm.quasipoisson.res <- emmeans(glm.quasipoisson, ~ wash_type:soil, level=0.95)
+glm.quasipoisson.res <- cld(glm.quasipoisson.res, alpha = 0.05, Letters = letters, decreasing = TRUE)
+glm.quasipoisson.res <- data.frame(glm.quasipoisson.res)
+glm.quasipoisson.res 
+
+# Convert log values of estimate, asump.LCL, and asymp.UCL in number of plants
+glm.quasipoisson.res$estimate <- exp(glm.quasipoisson.res$emmean)
+glm.quasipoisson.res$LCL <- exp(glm.quasipoisson.res$asymp.LCL)
+glm.quasipoisson.res$UCL <- exp(glm.quasipoisson.res$asymp.UCL)
+
+glm.quasipoisson.res$UCL-glm.quasipoisson.res$LCL
+
+# remove excess spaces in .group
+glm.quasipoisson.res$.group <- gsub(" ", "", glm.quasipoisson.res$.group)
+glm.quasipoisson.res
+
+glm.quasipoisson.res$UCL - glm.quasipoisson.res$LCL
+```
+```{r}
+# plot results
+glm.quasipoisson.Tuv <- ggplot(data = glm.quasipoisson.res, aes(x=soil, y=estimate, fill=wash_type))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.3, label=.group), position = position_dodge(width=0.7), size=4)+
+  xlab("Soil Type") + ylab("Estimated Mean Log Reduction")+
+  ggtitle("")+
+  scale_y_continuous(limits=c(0,9), breaks=seq(0,9,by=2), expand = expand_scale(mult = c(0,0)))+
+  scale_fill_manual(values=c("white", "dark gray", "light gray"), name = "Cleaning Protocol:", labels = c("DHC", "MW" , "DSC"))+
+  theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="grey15",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=14, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 12),
+              axis.text.y = element_text(color= "black", size = 12),
+              axis.title.y = element_text(size = 14))
+
+
+ggsave(filename = "GLM_Tulane.jpg", width=7, height=5.5, unit="in", dpi = 300, plot = glm.quasipoisson.Tuv, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+
+```
+
+```{r}
+#capsule position versus log reduction Stats
+#select only speed cycle
+Tulane <-subset(Tulane, wash_type!= "NA" & wash_type!="manual")
+
+#remove empty levels
+
+Tulane$wash_type <- droplevels(Tulane$wash_type)
+
+summary(Tulane)
+
+#plot data
+ggplot(Tulane, aes(x = cap_place, y = log_reduction)) +   
+  geom_point(position = position_dodge2(0.07), size = 3)
+```
+```{r}
+
+Tulane_dot_plot_position <- ggplot(Tulane, aes(x = soil, y = log_reduction, color = cap_place, shape = wash_type)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(values = c(1, 2, 3, 4 ,7), labels = c("DHC", "DSC")) + 
+  ggtitle("") +
+ # ylim(0,10) + 
+  xlab("Soil Matrix") +
+  ylab("Log Reduction") + 
+  labs(color = "Capsule Position:") +
+  labs(shape = "Dishwasher Cycle:")+
+  scale_color_manual(values = c("deep sky blue", "dark green", "brown1"))  +
+  scale_y_continuous(limits = c(0,7.5), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "Tulane_dot_plot_position.jpg", width=7, height=5.5, unit="in", dpi = 300, plot = Tulane_dot_plot_position, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+```
+
+```{r}
+#capsule placement linear model attempt with soil consideration
+
+lm_model_1 <- lm(log_reduction ~ cap_place*soil*wash_type, data= Tulane)
+anova(lm_model_1)
+summary(lm_model_1)
+
+plot(lm_model_1, which = 1) 
+plot(lm_model_1, which = 2)
+
+#variance is fine, but QQ isn't great
+```
+
+```{r}
+#Let's see how it looks
+
+#compute least-square means (estimated marginal means)
+
+lsmeans.res <- emmeans(lm_model_1, ~cap_place*soil*wash_type, level = 0.95)
+lsmeans.res #display results to console
+```
+
+```{r}
+#set up compact letter display of multiple pairwise comparisons
+# post-hoc analysis
+
+lsmeans.res <- multcomp::cld(lsmeans.res, alpha = 0.05, Letters = letters, decreasing = T)
+
+
+```
+```{r}
+# remove excess spaces in .group
+lsmeans.res$.group <- gsub(" ", "", lsmeans.res$.group)
+lsmeans.res
+
+lsmeans.res$upper.CL - lsmeans.res$lower.CL #Why are they all exactly the same?
+
+```
+
+```{r}
+
+ANOVA_Tulane_cap_position <- ggplot(data = lsmeans.res, aes(x=soil, y=emmean, fill=cap_place))+
+  geom_col(stat="identity", position = position_dodge(width=0.7), color="black", width=0.7)+
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), position = position_dodge(width=0.7), width=0.6)+
+  geom_text(aes(y = upper.CL+0.2, label=.group), position = position_dodge(width=0.7), size=4)+
+  xlab("Soil Matrix") + ylab("Estimated Mean Log Reduction")+
+  ggtitle("")+
+  scale_y_continuous(limits=c(0,8), breaks=seq(0,8,by=2), expand = expand_scale(mult = c(0,0)))+
+  facet_grid(~case_when(wash_type == "speed" ~ "DSC",
+                       wash_type == "heavy" ~ "DHC")) + 
+  scale_fill_manual(values=c( "white", "dark gray", "light gray" ), name = "Capsule Position:")+
+ theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="grey15",linetype="dotted"),
+              legend.position = "bottom",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=14, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 12),
+              axis.text.y = element_text(color= "black", size = 12),
+              axis.title.y = element_text(size = 14),
+              strip.background = element_rect(fill=NA),
+              strip.text = ggtext::element_markdown(size = 14))
+
+ggsave(filename = "ANOVA_Tulane_cap_position.jpg", width=12, height=8, dpi = 300, unit="in", plot = ANOVA_Tulane_cap_position, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+
+```
+
+

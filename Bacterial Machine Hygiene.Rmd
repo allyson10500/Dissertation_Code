@@ -1,0 +1,442 @@
+---
+title: "Machine hygiene 4-30 separated by bacterial species"
+author: "Allyson Hamilton"
+date: "5/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# import required libraries
+require(tidyverse) # for data formatting
+require(ggplot2) 
+require(ggpubr) # for plotting
+require(lme4)
+require(lmerTest) # for mixed-models and GLMMs
+require(emmeans) 
+require(multcompView)
+require(multcomp)# for post-hoc analysis
+require(gdata) # contains keep()
+require(writexl)
+library(dplyr)
+library(gridExtra)
+library(rstatix)
+library(kableExtra)
+require(mdthemes)
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 1")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (5).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+hygiene <- hygiene[,-c(3,6,8:13,15:18,21,24:27)]
+
+#subset only washed treatments
+all_hygiene <- hygiene[!is.na(hygiene$wash_type), ]
+
+```
+```{r}
+#choose only Salmonella
+
+as.factor(all_hygiene$microbe)
+
+all_hygiene <- all_hygiene[all_hygiene$microbe == "ST",]
+
+```
+```{r}
+#order the legend
+
+all_hygiene$soil <- factor(all_hygiene$soil, levels = c("F", "A", "B" , "P" , "S" ))
+
+
+all_hygiene$soil <- recode_factor(all_hygiene$soil, F = "unsoiled", A = "mixture", B = "butter" , P = "protein" , S = "sugar")
+
+all_hygiene$wash_type <- factor(all_hygiene$wash_type, levels = c("heavy", "speed", "manual"))
+
+```
+```{r}
+#dot plot
+
+microbe_names <- c("*L. monocytogenes*", "*S.* Typhimurium", "Tulane virus")
+names(microbe_names) <- c("LM", "ST", "TuV")
+
+wash_type_names <- c("DHC", "DSC", "Manual")
+names(wash_type_names) <- c("heavy", "speed", "manual")
+
+all_hygiene <- ggplot(all_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  facet_grid(microbe~wash_type, labeller = labeller(microbe = microbe_names, wash_type = wash_type_names))+
+  scale_shape_manual(values = c(0,1,2,3,4, 7)) + 
+  ggtitle("") +
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  labs(shape = "Soil Type:")+
+  scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(strip.text.x = ggtext::element_markdown(size = 19),
+        strip.text.y = ggtext::element_markdown(size = 19),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"))
+
+ggsave(filename = "all_hygiene.jpg", width=12, height=8, unit="in", plot = all_hygiene, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 1/")
+
+```
+
+```{r}
+#let's start some stats!!!!
+glm.quasipoisson <- glm(log_reduction_limit ~ wash_type * soil, family = quasipoisson(link = "log"), data=all_hygiene)
+summary(glm.quasipoisson)
+```
+```{r}
+# post-hoc analysis
+glm.quasipoisson.res <- emmeans(glm.quasipoisson, ~ wash_type:soil, level=0.95)
+glm.quasipoisson.res <- cld(glm.quasipoisson.res, alpha = 0.05, Letters = letters, decreasing = TRUE)
+glm.quasipoisson.res <- data.frame(glm.quasipoisson.res)
+glm.quasipoisson.res 
+
+# Convert log values of estimate, asump.LCL, and asymp.UCL in number of plants
+glm.quasipoisson.res$estimate <- exp(glm.quasipoisson.res$emmean)
+glm.quasipoisson.res$LCL <- exp(glm.quasipoisson.res$asymp.LCL)
+glm.quasipoisson.res$UCL <- exp(glm.quasipoisson.res$asymp.UCL)
+
+# remove excess spaces in .group
+glm.quasipoisson.res$.group <- gsub(" ", "", glm.quasipoisson.res$.group)
+glm.quasipoisson.res
+```
+
+```{r}
+write_xlsx(glm.quasipoisson.res,"C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data//ST_table.xlsx")
+```
+
+```{r}
+# plot results
+glm.quasipoisson.plot.ST <- ggplot(data = glm.quasipoisson.res, aes(x=soil, y=estimate, fill=wash_type))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.5, label=.group), position = position_dodge(width=0.7), size=4)+
+  xlab("Soil Type") + ylab("Estimated Log Reduction")+
+  ggtitle("")+
+  scale_y_continuous(limits=c(0,12), breaks=seq(0,12,by=2), expand = expand_scale(mult = c(0,0)))+
+  scale_fill_manual(values=c("#000000", "#56B4E9", "#0072B2"), name = "Cleaning Protocol:")+
+  theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="grey15",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=14, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 12),
+              axis.text.y = element_text(color= "black", size = 12),
+              axis.title.y = element_text(size = 14))
+glm.quasipoisson.plot.ST
+
+ggsave(filename = "GLM with quasipoisson errors for Salmonella.jpg", width=7, height=5.5, unit="in", plot = glm.quasipoisson.plot.ST, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+
+
+```
+
+```{r}
+
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (5).txt",
+                     header = TRUE,
+                     sep = "\t")
+#remove extra columns
+hygiene <- hygiene[,-c(3,6,8:13,15:18,21,24:27)]
+
+#subset only washed treatments
+all_hygiene <- hygiene[!is.na(hygiene$wash_type), ]
+
+#choose only Listeria
+as.factor(all_hygiene$microbe)
+
+all_hygiene <- all_hygiene[all_hygiene$microbe == "LM",]
+
+```
+```{r}
+#order the legend
+
+all_hygiene$soil <- factor(all_hygiene$soil, levels = c("F", "A", "B" , "P" , "S" ))
+
+
+all_hygiene$soil <- recode_factor(all_hygiene$soil, F = "unsoiled", A = "mixture", B = "butter" , P = "protein" , S = "sugar")
+
+```
+```{r}
+#dot plot
+
+all_hygiene_List <- ggplot(all_hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, color = wash_type, shape = soil)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  scale_shape_manual(values = c(1, 2, 3, 4 ,7)) + 
+  ggtitle("") +
+  ylim(0,10) + 
+  xlab("Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  labs(color = "Cleaning Protocol:") +
+  labs(shape = "Soil Type:")+
+  scale_color_manual(values = c("deep sky blue", "dark green", "brown1")) + 
+  scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        strip.text = element_text(face = "italic", size = 13),
+        axis.title = element_text(size=13),
+        axis.text = element_text(size=12, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="solid", size=.5),
+        #panel.grid.minor.y = element_line(color="grey45", linetype="solid", size=0.25),
+        legend.title = element_text(size=13),
+        axis.text.y = element_text(color= "black"),
+        axis.text.x = element_text(color= "black")) 
+
+ggsave(filename = "all_hygiene_List.jpg", width=7, height=5.5, unit="in", plot = all_hygiene_List, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+
+```
+
+```{r}
+#let's start some stats!!!!
+glm.quasipoisson <- glm(log_reduction_limit ~ wash_type * soil, family = quasipoisson(link = "log"), data=all_hygiene)
+summary(glm.quasipoisson)
+```
+```{r}
+# post-hoc analysis
+glm.quasipoisson.res <- emmeans(glm.quasipoisson, ~ wash_type:soil, level=0.95)
+glm.quasipoisson.res <- cld(glm.quasipoisson.res, alpha = 0.05, Letters = letters, decreasing = TRUE)
+glm.quasipoisson.res <- data.frame(glm.quasipoisson.res)
+glm.quasipoisson.res 
+
+# Convert log values of estimate, asump.LCL, and asymp.UCL in number of plants
+glm.quasipoisson.res$estimate <- exp(glm.quasipoisson.res$emmean)
+glm.quasipoisson.res$LCL <- exp(glm.quasipoisson.res$asymp.LCL)
+glm.quasipoisson.res$UCL <- exp(glm.quasipoisson.res$asymp.UCL)
+
+# remove excess spaces in .group
+glm.quasipoisson.res$.group <- gsub(" ", "", glm.quasipoisson.res$.group)
+glm.quasipoisson.res
+```
+```{r}
+write_xlsx(glm.quasipoisson.res,"C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data//LM_table.xlsx")
+
+```
+
+```{r}
+# plot results
+glm.quasipoisson.plot.LM <- ggplot(data = glm.quasipoisson.res, aes(x=soil, y=estimate, fill=wash_type))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.5, label=.group), position = position_dodge(width=0.7), size=4)+
+  xlab("Soil Type") + ylab("Estimated Log Reduction")+
+  ggtitle("")+
+  scale_y_continuous(limits=c(0,12), breaks=seq(0,12,by=2), expand = expand_scale(mult = c(0,0)))+
+  scale_fill_manual(values=c("#000000", "#56B4E9", "#0072B2"), name = "Cleaning Protocol:")+
+  theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="grey15",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=14, color="black"),
+              legend.title = element_text(size=14),
+              legend.text = element_text(size=14),
+              plot.title = element_text(size=14, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 12),
+              axis.text.y = element_text(color= "black", size = 12),
+              axis.title.y = element_text(size = 14))
+glm.quasipoisson.plot.LM
+
+ggsave(filename = "GLM with quasipoisson errors for Listeria.jpg", width=7, height=5.5, unit="in", plot = glm.quasipoisson.plot.LM, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+
+
+```
+
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 1")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (5).txt",
+                     header = TRUE,
+                     sep = "\t")
+
+#subset only washed treatments
+controls <- hygiene[is.na(hygiene$wash_type), ]
+
+controls <- subset(controls, description == "high")
+
+controls <- subset(controls, soil == "F")
+
+summary(controls)
+
+
+```
+```{r}
+#import the data ----
+setwd("~/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 1")
+
+hygiene <- read.table(file = "Phase 1 - Machine Hygiene (6).txt",
+                     header = TRUE,
+                     sep = "\t")
+
+#remove extra columns
+hygiene <- hygiene[,-c(3,6,8:13,15:18,21,24:27)]
+```
+
+```{r}
+#remove manual and no wash treatments
+hygiene <-subset(hygiene, wash_type!= "NA" & wash_type!="manual")
+
+hygiene <- subset(hygiene, soil == "A")
+
+hygiene$microbe <- as.factor(hygiene$microbe)
+hygiene$soil <-as.factor(hygiene$soil)
+hygiene$wash_type <-as.factor(hygiene$wash_type)
+hygiene$cap_place <- as.factor(c(rep(1:3, 16)))
+
+summary(hygiene)
+```
+
+```{r}
+#left versus right plot
+
+microbe_names <- c("*L. monocytogenes*", "*S.* Typhimurium", "Tulane virus")
+names(microbe_names) <- c("LM", "ST", "TuV")
+
+wash_type_names <- c("DHC - Left", "DHC - Right", "DSC - Left", "DSC - Right")
+names(wash_type_names) <- c("heavy.L", "heavy", "speed.L", "speed")
+
+hygiene_left_and_right_plot <- ggplot(hygiene, aes(x = log_CFU_on_cap, y = log_reduction_limit, shape = cap_place)) +   
+  geom_point(position = position_dodge2(0.07), size = 3) + 
+  ggtitle("") +
+  ylim(0,10) + 
+  facet_grid(microbe~wash_type, labeller = labeller(microbe = microbe_names, wash_type = wash_type_names), scales = "free")+
+  xlab("Initial Log CFU on Capsule") +
+  ylab("Log Reduction") + 
+  labs(shape = "Capsule Position:") +
+  scale_shape_manual(values = c(1, 2, 3, 4 ,7))+
+  scale_y_continuous(limits = c(0,10), expand = expand_scale(mult = c(0,0)))+
+   theme(strip.text.x = ggtext::element_markdown(size = 19),
+        strip.text.y = ggtext::element_markdown(size = 19),
+        plot.title = element_text(hjust = 0.5, face = "plain"),
+        panel.background = element_rect(fill="white", color="grey15"),
+        strip.background = element_rect(fill=NA),
+        axis.title = element_text(size=20),
+        axis.text = element_text(size=19, color="grey35"),
+        panel.grid.major.y = element_line(color="grey45", linetype="dotted", size=.5),
+        panel.grid.minor.y = element_line(color="grey45", linetype="dotted", size=0.25),
+        legend.title = element_text(size=20),
+        legend.text = element_text(size = 19),
+        axis.text.y = element_text(color= "black"),
+        legend.key=element_blank(),
+        axis.text.x = element_text(color= "black"),
+        panel.spacing=unit(1,"lines"))
+
+ggsave(filename = "hygiene_left_and_right_plot.jpg", width=12, height=8, unit="in", plot = hygiene_left_and_right_plot, dpi = 100, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/Phase 1/")
+```
+
+```{r}
+#stats
+#need to compare ST in heavy-L with ST in heavy-R
+
+stat.test <- hygiene %>%
+  group_by(microbe) %>%
+  t_test(log_reduction_limit ~ wash_type) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+stat.test <- stat.test[c(1,6,7,12),]
+as.data.frame(stat.test)
+stat.test <- stat.test[,c(1,3:4, 7:8,10)]
+
+
+stat.test
+```
+
+```{r}
+#capsule position versus log reduction Stats
+
+#Remove heavy cycle
+#hygiene <-subset(hygiene, wash_type!= "heavy" & wash_type!="heavy.L")
+
+hygiene["wash_type"][hygiene["wash_type"] == "heavy.L"] <- "heavy"
+hygiene["wash_type"][hygiene["wash_type"] == "speed.L"] <- "speed"
+
+#plot data
+ggplot(hygiene, aes(x = cap_place, y = log_reduction_limit)) +   
+  geom_point(position = position_dodge2(0.07), size = 3)
+
+
+lm_model <- lm(log_reduction_limit ~ cap_place*wash_type, data= hygiene)
+anova(lm_model)
+summary(lm_model)
+
+confint(lm_model, level = 0.95)
+```
+```{r}
+glm.quasipoisson <- glm(log_reduction_limit ~ cap_place*wash_type, family = quasipoisson(link = "log"), data=hygiene)
+summary(glm.quasipoisson)
+```
+```{r}
+# post-hoc analysis
+glm.quasipoisson.res <- emmeans(glm.quasipoisson, ~ cap_place:wash_type, level=0.95)
+glm.quasipoisson.res <- cld(glm.quasipoisson.res, alpha = 0.05, Letters = letters, decreasing = TRUE)
+glm.quasipoisson.res <- data.frame(glm.quasipoisson.res)
+glm.quasipoisson.res 
+
+# Convert log values of estimate, asump.LCL, and asymp.UCL in number of plants
+glm.quasipoisson.res$estimate <- exp(glm.quasipoisson.res$emmean)
+glm.quasipoisson.res$LCL <- exp(glm.quasipoisson.res$asymp.LCL)
+glm.quasipoisson.res$UCL <- exp(glm.quasipoisson.res$asymp.UCL)
+
+# remove excess spaces in .group
+glm.quasipoisson.res$.group <- gsub(" ", "", glm.quasipoisson.res$.group)
+glm.quasipoisson.res
+
+
+```
+```{r}
+# plot results
+glm.quasipoisson.plot.LR <- ggplot(data = glm.quasipoisson.res, aes(x=cap_place, y=estimate, fill=wash_type))+
+  geom_bar(stat="identity", position = position_dodge(width=0.7), color="black", width=0.6)+
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = position_dodge(width=0.7), width=0.2)+
+  geom_text(aes(y = UCL+0.5, label=.group), position = position_dodge(width=0.7), size=4)+
+  xlab("Capsule Position") + ylab("Estimated Log Reduction")+
+  ggtitle("")+
+  scale_y_continuous(limits=c(0,12), breaks=seq(0,12,by=2), expand = expand_scale(mult = c(0,0)))+
+  scale_fill_manual(values=c("#000000", "#56B4E9", "#0072B2"), name = "Cleaning Protocol:")+
+  theme(panel.background = element_rect(fill=NA, color="grey15"),
+              panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank(),
+              panel.grid.major.y = element_line(color="grey15",linetype="dotted"),
+              legend.position = "right",
+              axis.text = element_text(size=14, color="grey15"),
+              axis.title = element_text(size=16, color="black"),
+              legend.title = element_text(size=16),
+              legend.text = element_text(size=16),
+              plot.title = element_text(size=16, face="bold"),
+              axis.text.x = element_text(color = "black", face = "plain", size = 12),
+              axis.text.y = element_text(color= "black", size = 12),
+              axis.title.y = element_text(size = 12))
+glm.quasipoisson.plot.LR
+
+ggsave(filename = "GLM with quasipoisson errors for Left and Right.jpg", width=7, height=5.5, unit="in", plot = glm.quasipoisson.plot.LR, path = "C:/Users/allys/Documents/All School Stuff/All Graduate School/Research/Thesis - Food Inks/Data/")
+```
